@@ -319,7 +319,8 @@ func (c *client) getContainer(ctx context.Context, id string) (containerd.Contai
 
 # 5.Containerd
 
-##(1)
+## (1)
+
 `containerd\container.go`
 
 ```golang
@@ -352,4 +353,59 @@ func (c *Client) LoadContainer(ctx context.Context, id string) (Container, error
 	return containerFromRecord(c, r), nil
 }
 ```
-后面的事不是很复杂了，就麻烦姜庆阳了
+
+## (2)
+
+再回到`moby/libcontainerd/remote/client.go`的*start*函数中
+`containerd/task.go`，启动的主线即在这里
+```golang
+func (t *task) Start(ctx context.Context) error {
+	r, err := t.client.TaskService().Start(ctx, &tasks.StartRequest{
+		ContainerID: t.id,
+	})
+	return nil
+}
+
+
+Start返回一个是一个*StartRequest*类型
+在`containerd/api/services/tasks/v1/tasks.pb.go`中
+```golang
+type StartResponse struct {
+	Pid                  uint32   `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+```
+
+```
+其中，`TaskService()`定义在`Client.go`中
+```golang
+func (c *Client) TaskService() tasks.TasksClient{
+	……
+	return tasks.NewTasksClient(c.conn)
+
+}
+```
+而`tasks.TasksClient`则定义在如下包中：
+## (3)
+`github.com/containerd/containerd/api/services/tasks/v1/`
+也就是`containerd/api/services/tasks/v1/tasks.pb.go`
+```golang
+type TasksClient interface {
+	……
+}
+type tasksClient struct {
+	cc *grpc.ClientConn
+}
+
+func (c *tasksClient) Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*StartResponse, error) {
+	out := new(StartResponse)
+	err := c.cc.Invoke(ctx, "/containerd.services.tasks.v1.Tasks/Start", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+```
+在此处通过`c.cc.Invoke(ctx, "/containerd.services.tasks.v1.Tasks/Start", in, out, opts...)` 启动容器，后续工作还不是很明白，就交给*姜庆阳*了,回头多联系
